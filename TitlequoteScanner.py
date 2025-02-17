@@ -30,7 +30,7 @@ class TitlequoteScanner:
         self.driver.maximize_window()
         self.driver.get(self.EP_BASE_URL)
         USERNAME_ = "cary@caryandcompany.com"
-        PASSWORD = "Tornado1963"
+        PASSWORD = "Bocce2025"
         time.sleep(30)
         login_input = self.driver.find_element(By.ID, "username")
 
