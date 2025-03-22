@@ -3,6 +3,7 @@ import json
 import tabula
 import pandas as pd
 from FileManager import create_output_dir, write_data_into_json
+import os
 
 class MSScraper:
 
@@ -13,7 +14,13 @@ class MSScraper:
         self.output_directory_name = "MS-Scraper-Output"
 
         create_output_dir(self.output_directory_name)
-
+        self.json_file_path = "output/" + self.output_directory_name + '/MS.json'
+        if os.path.exists(self.json_file_path):
+            try:
+                os.remove(self.json_file_path)
+                print(f"Deleted existing file: {self.json_file_path}")
+            except OSError as e:
+                print(f"Error deleting file: {e}")
 
     def scrape(self):
 
@@ -23,9 +30,6 @@ class MSScraper:
             ms.write(pdf_response.content)
         
         self.pdf_to_excel()
-    
-        return "output/" + self.output_directory_name + '/output.xlsx'
-
     
     def pdf_to_excel(self):
 
@@ -144,3 +148,10 @@ class MSScraper:
                 formatted_data.append(row_dict)
             
         write_data_into_json("output/" + self.output_directory_name +  '/MS',formatted_data)
+
+
+if __name__ == "__main__":
+
+    bot = MSScraper()
+
+    bot.scrape()

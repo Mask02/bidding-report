@@ -4,7 +4,7 @@ import time
 import json
 from FileManager import write_data_into_json, create_output_dir
 from selenium.webdriver.chrome.options import Options
-
+import os
 
 class LOGScraper:
 
@@ -16,7 +16,7 @@ class LOGScraper:
         
         options = Options()
         options.add_argument("--no-sandbox")
-        options.add_argument("--headless") # Make browser headless
+        # options.add_argument("--headless") # Make browser headless
         
         self.driver = webdriver.Chrome(options=options) # Initializing Microsoft's Edge Webdriver
 
@@ -25,7 +25,16 @@ class LOGScraper:
         self.output_directory_name = "LOG-Scraper-Output"
 
         create_output_dir(self.output_directory_name)
-        
+
+        self.json_file_path = "output/" + self.output_directory_name + "/log_data.json"
+
+        if os.path.exists(self.json_file_path):
+            try:
+                os.remove(self.json_file_path)
+                print(f"Deleted existing file: {self.json_file_path}")
+            except OSError as e:
+                print(f"Error deleting file: {e}")
+
     def scrape(self):
 
         self.driver.get(self.REPORT_URL)
@@ -72,6 +81,9 @@ class LOGScraper:
 
         write_data_into_json("output/" + self.output_directory_name + "/log_data", self.data)
 
-        return "output/" + self.output_directory_name + "/log_data.xlsx"
 
-    
+if __name__ == "__main__":
+
+    bot = LOGScraper()
+
+    bot.scrape()

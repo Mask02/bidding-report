@@ -4,186 +4,179 @@ import PyPDF2
 import re
 from FileManager import write_data_into_json, create_output_dir
 from Logger import log
-import tabula
-import pandas as pd
-
+import os
+import glob
 
 class SLScraper:
-
     def __init__(self):
-
         self.BASE_URL = "https://www.southlaw.com"
-
         self.SL_DOWNLOAD_URL = self.BASE_URL + "/download/"
-
-        self.file_names = list()
-
-        self.data = list()
-    
-        self.keys = ["PropAddress", "PropCity", "PropZip", "Sale_date", "Sale_time", "continued_date", "OpeningBid", "Courthouse", "Civil Case No.","Firm File#"]
-        
+        self.file_names = []
+        self.data = []
+        # Restore the keys list
+        self.keys = ["PropAddress", "PropCity", "PropZip", "Sale_date", "Sale_time", 
+                     "continued_date", "OpeningBid", "Courthouse", "Civil Case No.", "Firm File#"]
         self.output_directory_name = "SL-Scraper-Output"
-
         create_output_dir(self.output_directory_name)
+        
+        output_dir = "output/" + self.output_directory_name
+        for ext in (".pdf", ".json"):
+            files_to_remove = glob.glob(os.path.join(output_dir, f"*{ext}"))
+            for file_path in files_to_remove:
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted existing file: {file_path}")
+                except OSError as e:
+                    print(f"Error deleting file {file_path}: {e}")
 
     def scrape(self):
-
         response = requests.get(self.SL_DOWNLOAD_URL)
-
         soup = BeautifulSoup(response.text, 'html.parser')
-
         files_headings = soup.find_all('h4')
-
         files_links = [self.BASE_URL + heading.find('a')['href'] for heading in files_headings]
-
         self.download_pdfs(files_links)
-
         for filename in self.file_names:
-            
             self.read_pdfs(filename)
-        
-        write_data_into_json("output/" + self.output_directory_name + '/sl_data',self.data)
-
-        return "output/" + self.output_directory_name + '/sl_data.xlsx'
-        
-    
+        log(f"SLScraper: Final data before writing to JSON (length: {len(self.data)}): {self.data}")
+        write_data_into_json("output/" + self.output_directory_name + '/sl_data', self.data)
+        return "output/" + self.output_directory_name + '/sl_data.json'
 
     def download_pdfs(self, links):
-
         for lnk in links:
-            
             response = requests.get(lnk)
-
             file_name = "output/" + self.output_directory_name + "/" + lnk.split("/")[-1]
-
             self.file_names.append(file_name)
-
             with open(file_name, "wb") as out:
-
-                out.write(response.content)     
-
-
+                out.write(response.content)
 
     def update_data(self, record, county):
         row_dict = {
-                    "Trustee": "",
-                    "Sale_date": "",
-                    "Sale_time": "",
-                    "continued_date":"",
-                    "continued_time":"",
-                    "County": "",
-                    "Civil Case No.": "",
-                    "FileNo": "",
-                    "OpeningBid": "",
-                    "PropAddress": "",
-                    "PropCity": "",
-                    "PropZip": "",
-                    "Courthouse":""
-                    }
+            "Trustee": "SOUTHLAW",
+            "Sale_date": "",
+            "Sale_time": "",
+            "continued_date": "N/A",
+            "continued_time": "",
+            "County": county,
+            "Civil Case No.": "",
+            "FileNo": "",
+            "OpeningBid": None,
+            "PropAddress": "",
+            "PropCity": "",
+            "PropZip": "",
+            "Courthouse": ""
+        }
         
-        row_dict["Trustee"] = "SOUTHLAW"
-        
-        row_dict["County"] = county
-        
-        for c_index in range(len(self.keys)):
-
-            current_key = self.keys[c_index]
-
-            if self.keys[c_index] == "Firm File#":
-                row_dict["FileNo"] = record[c_index]
-            else:
-
-                if current_key == "continued_date":
-                    if record[c_index] != "N/A":
-                        row_dict["continued_date"] = record[c_index].split(" ")[0]
-                        row_dict["continued_time"] = " ".join(record[c_index].split(" ")[1:])
-                    else:
-                        row_dict["continued_date"] = "N/A"
-                        row_dict["continued_time"] = "N/A"
+        try:
+            for key, value in zip(self.keys, record):
+                if value is None:
+                    value = ""
+                if key == "Firm File#":
+                    row_dict["FileNo"] = value
+                elif key == "continued_date" and value != "N/A":
+                    parts = value.split(" ", 1)
+                    row_dict["continued_date"] = parts[0]
+                    row_dict["continued_time"] = parts[1] if len(parts) > 1 else ""
+                elif key == "OpeningBid" and value and value != "N/A":
+                    row_dict[key] = float(re.sub(r'[^\d.]', '', value)) if value else None
                 else:
-                    row_dict[self.keys[c_index]] = record[c_index]
-
-        if len(row_dict["FileNo"]) != 0:
-            self.data.append(row_dict)
-
+                    row_dict[key] = value
+            
+            if row_dict["PropAddress"]:
+                self.data.append(row_dict)
+                log(f"SLScraper: Added record: {row_dict}")
+            else:
+                log(f"SLScraper: Skipped record (no address): {row_dict}")
+        except Exception as e:
+            log(f"SLScraper: Error in update_data with record {record}: {str(e)}")
 
     def read_pdfs(self, filename):
-
-            # Extracting Sales data from pdf of SouthLaw Corp
-
-            with open(filename, "rb") as pdf_file:
-
-                pdf = PyPDF2.PdfReader(pdf_file)
-
-                num_pages = len(pdf.pages)
-
-                for page_num in range(num_pages):
-
-                    page = pdf.pages[page_num]
-                    
-                    page_lines = page.extract_text().split("\n")[11:-4]
-
-                    record = list()
-                    
-                    for line_no in range(len(page_lines)):
-
-                        try:
-                        
-                            line_parts = page_lines[line_no].split(" ")
-
-                            if line_no == 0: # There is county at first line_no of every page
-                                county = page_lines[line_no]
-
-                            if len(line_parts) > 1:
-
-                                if "/" not in line_parts[0]:
-
-                                    if re.match('\d', page_lines[line_no].split(" ")[0]): # Check whether the line is property address or not, this will help to identify the start of new record
-
-                                        if len(record) > 0:
-                                            current_record = record
-                                            if re.match('\D', current_record[-1]):
-                                                    current_record = current_record[:-1] # Removing heading from record, as it is the heading of next new record. The heading of current record is added first.
-
-                                            if len(current_record) > 0 and len(current_record) < 10: # If there are less no of columns in record than 10, it means a column is missing
-                                                
-                                                    if "/" in current_record[5]:
-                                                        current_record.insert(8, "")
-                                                    else:
-                                                        current_record.insert(5, "")
-                                                
-                                            
-                                            if line_no != 1: # If this is line_no 1, then it is not a record
-
-                                                self.update_data(current_record, county)
-                                                
-                                                    
-
-                                        # Check whether current line is record heading (county) or not
-                                        if re.match('\D', record[-1]):
-                                            county = record[-1]
-                                            
-                                        record = list() # clear the record list for new record
-                                    
-                            elif line_no == len(page_lines) - 1:
-                                
-                                if len(record) < 10: # If there are less no of columns in record than 10, then it means Continued Date/Time column missing, add empty string in place of it
-                                    
-                                    if "/" in record[5]:
-                                        record.insert(8, "")
-                                    else:
-                                        record.insert(5, "")
-                                
-                                # For last line, update record
-                                record.append(page_lines[line_no])
-
-                                #Update data
-                                self.update_data(record, county)
-                            
-                                    
-                            
-                            record.append(page_lines[line_no])
-                        except Exception as e:
-
-                            log("SLScraper: " + page_lines[line_no] + " " + str(e))
+        with open(filename, "rb") as pdf_file:
+            pdf = PyPDF2.PdfReader(pdf_file)
+            num_pages = len(pdf.pages)
+            current_county = None
+            record = []
             
+            log(f"SLScraper: Reading PDF: {filename}, {num_pages} pages")
+            for page_num in range(num_pages):
+                page = pdf.pages[page_num]
+                text = page.extract_text()
+                log(f"SLScraper: Raw text from page {page_num + 1}: {text}")
+                lines = [line.strip() for line in text.split("\n") if line.strip()]
+                data_lines = lines  # Process all lines
+                log(f"SLScraper: Page {page_num + 1} has {len(data_lines)} data lines: {data_lines}")
+                
+                for i, line in enumerate(data_lines):
+                    try:
+                        # County detection
+                        if (len(line.split()) <= 2 and line.isupper() and 
+                            not any(c.isdigit() for c in line) and 
+                            (i == 0 or (i > 0 and data_lines[i-1] == ""))):
+                            if record:
+                                self.process_record(record, current_county)
+                            current_county = line
+                            record = []
+                            log(f"SLScraper: Found county: {current_county}")
+                            continue
+                        
+                        # Start or continue record
+                        if (re.match(r'^\d+\s+[A-Za-z]', line) or "APT" in line.upper() or "UNIT" in line.upper()):
+                            if record:
+                                self.process_record(record, current_county)
+                            record = [line]
+                            log(f"SLScraper: New record started with address: {line}")
+                        elif record:
+                            record.append(line)
+                            log(f"SLScraper: Added to record: {line}")
+                        
+                        if i == len(data_lines) - 1 and record:
+                            self.process_record(record, current_county)
+                            record = []
+                            
+                    except Exception as e:
+                        log(f"SLScraper: Error processing line '{line}': {str(e)}")
+            
+            if record:
+                self.process_record(record, current_county)
+
+    def process_record(self, record, county):
+        try:
+            if not record:
+                log(f"SLScraper: Empty record skipped")
+                return
+                
+            processed = [""] * len(self.keys)
+            processed[0] = record[0]  # PropAddress
+            
+            for i, line in enumerate(record[1:], start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                if i == 1 and not re.match(r'^\d', line):  # Likely PropCity
+                    processed[1] = line
+                elif re.match(r'^\d{5}(-\d{4})?$', line):  # PropZip
+                    processed[2] = line
+                elif re.match(r'^\d{1,2}/\d{1,2}/\d{4}', line):  # Sale_date or continued_date
+                    if not processed[3]:
+                        processed[3] = line
+                    else:
+                        processed[5] = line
+                elif re.match(r'^\d{1,2}:\d{2}\s?(AM|PM|am|pm)$', line, re.IGNORECASE):  # Sale_time
+                    processed[4] = line
+                elif re.search(r'[\$S]\d+(,\d+)*(\.\d+)?', line):  # OpeningBid
+                    processed[6] = line
+                elif "COURT" in line.upper() and not processed[7]:  # Courthouse
+                    processed[7] = line
+                elif re.match(r'^\d{2,4}-.*', line) and not processed[8]:  # Civil Case No.
+                    processed[8] = line
+                elif line.strip() and not processed[9]:  # Firm File#
+                    processed[9] = line
+            
+            log(f"SLScraper: Processed record: {processed}")
+            self.update_data(processed, county)
+                
+        except Exception as e:
+            log(f"SLScraper: Error processing record {record}: {str(e)}")
+
+if __name__ == "__main__":
+    bot = SLScraper()
+    bot.scrape()
