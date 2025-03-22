@@ -148,7 +148,8 @@ class MSScraper:
                 formatted_data.append(row_dict)
             
         write_data_into_json("output/" + self.output_directory_name +  '/MS',formatted_data)
-
+        
+        return self.json_file_path
 
 if __name__ == "__main__":
 

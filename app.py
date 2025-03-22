@@ -13,17 +13,6 @@ from Logger import log
 
 app = Flask(__name__)
 
-
-@app.route('/at')
-def at_scraper():
-    return send_file("output/AT-Scraper-Output/at_data.json")
-
-
-@app.route('/ct')
-def ct_scraper():
-    return send_file("output/CT-Scraper-Output/ct_data.json")
-
-
 @app.route('/ep')
 def ep_scraper():
     return send_file("output/EP-Scraper-Output/ep_data.json")
@@ -50,15 +39,6 @@ def tq_scraper():
 
 
 def scraping():
-    try:
-        ATScraper().scrape()
-    except Exception as e:
-        log("ATScraper:" + str(e))
-
-    try:
-        CTScraper().scrape()
-    except Exception as e:
-        log("CTScraper:" + str(e))
 
     try:
         EPScraper().scrape()

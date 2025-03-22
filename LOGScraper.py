@@ -80,7 +80,7 @@ class LOGScraper:
                 self.data.append(row_dict)
 
         write_data_into_json("output/" + self.output_directory_name + "/log_data", self.data)
-
+        return self.json_file_path
 
 if __name__ == "__main__":
 
