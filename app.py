@@ -1,6 +1,4 @@
 from flask import Flask, send_file
-from ATScraper import ATScraper
-from CTScraper import CTScraper
 from EPScraper import EPScraper
 from LOGScraper import LOGScraper
 from MSScraper import MSScraper
@@ -75,9 +73,9 @@ def schedule_script():
         schedule.run_pending()
         time.sleep(1)
 
-schedule.every(2).hours.do(scraping_thread)
+schedule.every(1).hours.do(scraping_thread)
 
 if __name__ == "__main__":
     Thread(target=scraping_thread).start()
     Thread(target=schedule_script).start()
-    app.run("0.0.0.0", port=80)
+    app.run("0.0.0.0", port=5000)
