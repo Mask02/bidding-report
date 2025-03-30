@@ -4,6 +4,7 @@ from LOGScraper import LOGScraper
 from MSScraper import MSScraper
 from SLScraper import SLScraper
 from TitlequoteScanner import TitlequoteScanner
+# from larado.Laredo import Laredo
 import schedule
 from threading import Thread
 import time
@@ -62,6 +63,10 @@ def scraping():
         TitlequoteScanner().scrape()
     except Exception as e:
         log("TitlequoteScanner:" + str(e))
+    # try:
+    #     Laredo().extract_data()
+    # except Exception as e:
+    #     log("TitlequoteScanner:" + str(e))
 
 
 def scraping_thread():
@@ -71,9 +76,10 @@ def scraping_thread():
 def schedule_script():
     while True:
         schedule.run_pending()
-        time.sleep(1)
+        time.sleep(60)
 
-schedule.every(1).hours.do(scraping_thread)
+schedule.every().day.at("10:00").do(scraping_thread)
+schedule.every().day.at("10:00").do(scraping_thread)
 
 if __name__ == "__main__":
     Thread(target=scraping_thread).start()

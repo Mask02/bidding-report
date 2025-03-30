@@ -50,7 +50,6 @@ class LOGScraper:
         table = self.driver.find_element(By.XPATH, "//div[@class='mid-viewport']")
 
         table_rows = list(table.find_elements(By.XPATH, ".//div[@role='row']"))
-
         for row in table_rows:
 
             row_dict = {
@@ -78,7 +77,7 @@ class LOGScraper:
             
             if len(row_dict["FileNo"]) != 0:
                 self.data.append(row_dict)
-
+        self.driver.quit()
         write_data_into_json("output/" + self.output_directory_name + "/log_data", self.data)
         return self.json_file_path
 
